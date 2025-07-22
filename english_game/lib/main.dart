@@ -831,7 +831,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Pergunta 2${current + 1} de ${puzzles.length}', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Pergunta ${current + 1} de ${puzzles.length}', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 12),
                   Text(puzzle.prompt, style: Theme.of(context).textTheme.titleLarge),
                   if (puzzle.type == 'jumble') ...[
