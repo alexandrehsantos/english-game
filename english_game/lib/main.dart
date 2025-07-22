@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'utils/local_llm_service.dart';
 
 class Chunk {
   final String id;
@@ -702,8 +704,28 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
   int xp = 0;
   int? selectedOption;
   bool finished = false;
+  bool _generating = false;
+  List<String> _variations = [];
+  final LocalLLMService _llm =
+      LocalLLMService(modelPath: 'model.gguf');
   List<int> jumbleOrder = [];
   List<int> userJumbleOrder = [];
+
+  Future<void> _generateVariations() async {
+    setState(() {
+      _generating = true;
+      _variations = [];
+    });
+    final chunk =
+        mockChunks.firstWhere((c) => c.id == widget.chunkId, orElse: () =>
+            Chunk(id: '', text: '', category: '', level: 0, translationPt: '', usageExamples: [], tags: []));
+    final vars = await _llm.generateVariations(chunk.text, 25);
+    setState(() {
+      _generating = false;
+      _variations = vars;
+    });
+    debugPrint(jsonEncode({'model': _llm.lastModelName, 'latency_ms': _llm.lastLatencyMs}));
+  }
 
   List<Puzzle> get puzzles =>
       mockPuzzles.where((p) => p.chunkId == widget.chunkId).toList();
@@ -792,6 +814,22 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
                     },
                     child: const Text('Recomeçar'),
                   ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _generating ? null : _generateVariations,
+                    child: Text(_generating ? 'Gerando...' : 'Gerar variações'),
+                  ),
+                  if (_variations.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    for (final v in _variations)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Text(
+                          v,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
                 ],
               ),
             )
