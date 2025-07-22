@@ -1,5 +1,120 @@
 import 'package:flutter/material.dart';
 
+class Chunk {
+  final String id;
+  final String text;
+  final String category;
+  final int level;
+  final String translationPt;
+  final List<String> usageExamples;
+  final List<String> tags;
+  Chunk({
+    required this.id,
+    required this.text,
+    required this.category,
+    required this.level,
+    required this.translationPt,
+    required this.usageExamples,
+    required this.tags,
+  });
+}
+
+class Puzzle {
+  final String id;
+  final String chunkId;
+  final String type;
+  final String prompt;
+  final List<String> options;
+  final int correctOptionIndex;
+  final int timeLimitSec;
+  final List<String> hints;
+  final String explanation;
+  final int difficulty;
+  Puzzle({
+    required this.id,
+    required this.chunkId,
+    required this.type,
+    required this.prompt,
+    required this.options,
+    required this.correctOptionIndex,
+    required this.timeLimitSec,
+    required this.hints,
+    required this.explanation,
+    required this.difficulty,
+  });
+}
+
+class UserProgress {
+  final String userId;
+  final String chunkId;
+  int lastScore;
+  int reviews;
+  DateTime nextReviewAt;
+  int streakDays;
+  UserProgress({
+    required this.userId,
+    required this.chunkId,
+    required this.lastScore,
+    required this.reviews,
+    required this.nextReviewAt,
+    required this.streakDays,
+  });
+}
+
+final List<Chunk> mockChunks = [
+  Chunk(
+    id: 'chunk_001',
+    text: 'I’m currently working as a _____.',
+    category: 'presentation',
+    level: 1,
+    translationPt: 'Atualmente trabalho como _____.',
+    usageExamples: [
+      'I’m currently working as a backend developer.',
+      'I’m currently working as a project manager.'
+    ],
+    tags: ['presentation', 'job'],
+  ),
+  Chunk(
+    id: 'chunk_002',
+    text: 'One of my strongest skills is _____.',
+    category: 'strengths',
+    level: 1,
+    translationPt: 'Uma das minhas maiores habilidades é _____.',
+    usageExamples: [
+      'One of my strongest skills is problem-solving.',
+      'One of my strongest skills is communication.'
+    ],
+    tags: ['strengths'],
+  ),
+];
+
+final List<Puzzle> mockPuzzles = [
+  Puzzle(
+    id: 'puzzle_001',
+    chunkId: 'chunk_001',
+    type: 'complete_chunk',
+    prompt: 'I’m currently working as a ______.',
+    options: ['backend developer', 'happy', 'carpenter'],
+    correctOptionIndex: 0,
+    timeLimitSec: 20,
+    hints: ['Profissão'],
+    explanation: 'Use a profissão/título profissional no espaço em branco.',
+    difficulty: 1,
+  ),
+  Puzzle(
+    id: 'puzzle_002',
+    chunkId: 'chunk_002',
+    type: 'complete_chunk',
+    prompt: 'One of my strongest skills is ______.',
+    options: ['problem-solving', 'pizza', 'dancing'],
+    correctOptionIndex: 0,
+    timeLimitSec: 20,
+    hints: ['Habilidade'],
+    explanation: 'Use uma habilidade relevante.',
+    difficulty: 1,
+  ),
+];
+
 void main() {
   runApp(const EnglishGameApp());
 }
@@ -36,6 +151,19 @@ class HomeScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ModeButton(
+              title: 'Praticar Chunks',
+              icon: Icons.list_alt,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ChunkListScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+            ModeButton(
               title: 'Desafio Diário',
               icon: Icons.today,
               onTap: () {
@@ -43,7 +171,7 @@ class HomeScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => const WritingChallengeScreen(),
-                  ),
+      ),
                 );
               },
             ),
@@ -512,6 +640,153 @@ class ReviewScreen extends StatelessWidget {
       body: const Center(
         child: Text('Em breve: histórico de respostas.'),
       ),
+    );
+  }
+}
+
+class ChunkListScreen extends StatelessWidget {
+  const ChunkListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Chunks'),
+        centerTitle: true,
+      ),
+      body: ListView.builder(
+        itemCount: mockChunks.length,
+        itemBuilder: (context, index) {
+          final chunk = mockChunks[index];
+          return ListTile(
+            title: Text(chunk.text),
+            subtitle: Text(chunk.translationPt),
+            trailing: Icon(Icons.arrow_forward),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PuzzleScreen(chunkId: chunk.id),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class PuzzleScreen extends StatefulWidget {
+  final String chunkId;
+  const PuzzleScreen({super.key, required this.chunkId});
+
+  @override
+  State<PuzzleScreen> createState() => _PuzzleScreenState();
+}
+
+class _PuzzleScreenState extends State<PuzzleScreen> {
+  int current = 0;
+  int xp = 0;
+  int? selectedOption;
+  bool finished = false;
+
+  List<Puzzle> get puzzles =>
+      mockPuzzles.where((p) => p.chunkId == widget.chunkId).toList();
+
+  void submitAnswer() {
+    setState(() {
+      if (selectedOption == puzzles[current].correctOptionIndex) {
+        xp += 10;
+      }
+      if (current < puzzles.length - 1) {
+        current++;
+        selectedOption = null;
+      } else {
+        finished = true;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (puzzles.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Puzzle')),
+        body: const Center(child: Text('Nenhum puzzle disponível para este chunk.')),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Puzzle'),
+        centerTitle: true,
+      ),
+      body: finished
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.emoji_events, size: 64, color: Colors.amber),
+                  const SizedBox(height: 16),
+                  Text('Parabéns! Você completou o puzzle.', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 16),
+                  Text('XP ganho: $xp'),
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        current = 0;
+                        xp = 0;
+                        finished = false;
+                        selectedOption = null;
+                      });
+                    },
+                    child: const Text('Recomeçar'),
+                  ),
+                ],
+              ),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Pergunta ${current + 1} de ${puzzles.length}', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  Text(puzzles[current].prompt, style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 24),
+                  ...List.generate(puzzles[current].options.length, (i) {
+                    return RadioListTile<int>(
+                      value: i,
+                      groupValue: selectedOption,
+                      onChanged: (val) {
+                        setState(() {
+                          selectedOption = val;
+                        });
+                      },
+                      title: Text(puzzles[current].options[i]),
+                    );
+                  }),
+                  const SizedBox(height: 16),
+                  LinearProgressIndicator(
+                    value: (xp % (puzzles.length * 10)) / (puzzles.length * 10),
+                    minHeight: 10,
+                    backgroundColor: Colors.grey[300],
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('XP: $xp'),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: selectedOption != null ? submitAnswer : null,
+                      child: Text(current < puzzles.length - 1 ? 'Próxima' : 'Finalizar'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
