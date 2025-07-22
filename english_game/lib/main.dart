@@ -113,6 +113,18 @@ final List<Puzzle> mockPuzzles = [
     explanation: 'Use uma habilidade relevante.',
     difficulty: 1,
   ),
+  Puzzle(
+    id: 'puzzle_003',
+    chunkId: 'chunk_001',
+    type: 'jumble',
+    prompt: 'Ordene as palavras para formar a frase correta.',
+    options: ['currently', 'I’m', 'working', 'as', 'a', 'backend', 'developer'],
+    correctOptionIndex: 0, // não usado para jumble
+    timeLimitSec: 30,
+    hints: ['Profissão'],
+    explanation: 'Monte a frase: I’m currently working as a backend developer.',
+    difficulty: 2,
+  ),
 ];
 
 void main() {
@@ -690,21 +702,56 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
   int xp = 0;
   int? selectedOption;
   bool finished = false;
+  List<int> jumbleOrder = [];
+  List<int> userJumbleOrder = [];
 
   List<Puzzle> get puzzles =>
       mockPuzzles.where((p) => p.chunkId == widget.chunkId).toList();
 
+  @override
+  void initState() {
+    super.initState();
+    _setupJumble();
+  }
+
+  void _setupJumble() {
+    if (puzzles.isNotEmpty && puzzles[current].type == 'jumble') {
+      jumbleOrder = List.generate(puzzles[current].options.length, (i) => i);
+      jumbleOrder.shuffle();
+      userJumbleOrder = List.from(jumbleOrder);
+    } else {
+      jumbleOrder = [];
+      userJumbleOrder = [];
+    }
+  }
+
   void submitAnswer() {
     setState(() {
-      if (selectedOption == puzzles[current].correctOptionIndex) {
+      if (puzzles[current].type == 'jumble') {
+        final correct = List.generate(puzzles[current].options.length, (i) => i);
+        if (userJumbleOrder.join(',') == correct.join(',')) {
+          xp += 10;
+        }
+      } else if (selectedOption == puzzles[current].correctOptionIndex) {
         xp += 10;
       }
       if (current < puzzles.length - 1) {
         current++;
         selectedOption = null;
+        _setupJumble();
       } else {
         finished = true;
       }
+    });
+  }
+
+  void _moveJumble(int oldIndex, int newIndex) {
+    setState(() {
+      if (oldIndex < newIndex) {
+        newIndex -= 1;
+      }
+      final item = userJumbleOrder.removeAt(oldIndex);
+      userJumbleOrder.insert(newIndex, item);
     });
   }
 
@@ -716,6 +763,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
         body: const Center(child: Text('Nenhum puzzle disponível para este chunk.')),
       );
     }
+    final puzzle = puzzles[current];
     return Scaffold(
       appBar: AppBar(
         title: const Text('Puzzle'),
@@ -739,6 +787,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
                         xp = 0;
                         finished = false;
                         selectedOption = null;
+                        _setupJumble();
                       });
                     },
                     child: const Text('Recomeçar'),
@@ -751,22 +800,72 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Pergunta ${current + 1} de ${puzzles.length}', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Pergunta 2${current + 1} de ${puzzles.length}', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 12),
-                  Text(puzzles[current].prompt, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 24),
-                  ...List.generate(puzzles[current].options.length, (i) {
-                    return RadioListTile<int>(
-                      value: i,
-                      groupValue: selectedOption,
-                      onChanged: (val) {
-                        setState(() {
-                          selectedOption = val;
-                        });
-                      },
-                      title: Text(puzzles[current].options[i]),
-                    );
-                  }),
+                  Text(puzzle.prompt, style: Theme.of(context).textTheme.titleLarge),
+                  if (puzzle.type == 'jumble') ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Arraste para ordenar as palavras e formar a frase correta.',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        userJumbleOrder.map((i) => puzzle.options[i]).join(' '),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ReorderableListView(
+                        onReorder: _moveJumble,
+                        children: [
+                          for (int i = 0; i < userJumbleOrder.length; i++)
+                            Card(
+                              key: ValueKey('jumble_$i'),
+                              color: Colors.white,
+                              elevation: 2,
+                              child: ListTile(
+                                title: Center(
+                                  child: Text(
+                                    puzzle.options[userJumbleOrder[i]],
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ]
+                  else
+                    ...List.generate(puzzle.options.length, (i) {
+                      return RadioListTile<int>(
+                        value: i,
+                        groupValue: selectedOption,
+                        onChanged: (val) {
+                          setState(() {
+                            selectedOption = val;
+                          });
+                        },
+                        title: Text(puzzle.options[i]),
+                      );
+                    }),
                   const SizedBox(height: 16),
                   LinearProgressIndicator(
                     value: (xp % (puzzles.length * 10)) / (puzzles.length * 10),
@@ -780,7 +879,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: selectedOption != null ? submitAnswer : null,
+                      onPressed: puzzle.type == 'jumble' || selectedOption != null ? submitAnswer : null,
                       child: Text(current < puzzles.length - 1 ? 'Próxima' : 'Finalizar'),
                     ),
                   ),
