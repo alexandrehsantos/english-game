@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'utils/srs_manager.dart';
+
+const String currentUserId = 'user_001';
 
 class Chunk {
   final String id;
@@ -639,8 +642,29 @@ class _AIInterviewScreenState extends State<AIInterviewScreen> {
   }
 }
 
-class ReviewScreen extends StatelessWidget {
+class ReviewScreen extends StatefulWidget {
   const ReviewScreen({super.key});
+
+  @override
+  State<ReviewScreen> createState() => _ReviewScreenState();
+}
+
+class _ReviewScreenState extends State<ReviewScreen> {
+  final SrsManager _manager = SrsManager();
+  List<Chunk> dueChunks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final dueIds = await _manager.chunksDue(currentUserId);
+    setState(() {
+      dueChunks = mockChunks.where((c) => dueIds.contains(c.id)).toList();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -649,9 +673,27 @@ class ReviewScreen extends StatelessWidget {
         title: const Text('Revisar Respostas'),
         centerTitle: true,
       ),
-      body: const Center(
-        child: Text('Em breve: histórico de respostas.'),
-      ),
+      body: dueChunks.isEmpty
+          ? const Center(child: Text('Nenhum chunk para revisar.'))
+          : ListView.builder(
+              itemCount: dueChunks.length,
+              itemBuilder: (context, index) {
+                final chunk = dueChunks[index];
+                return ListTile(
+                  title: Text(chunk.text),
+                  subtitle: Text(chunk.translationPt),
+                  trailing: const Icon(Icons.arrow_forward),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PuzzleScreen(chunkId: chunk.id),
+                      ),
+                    ).then((_) => _load());
+                  },
+                );
+              },
+            ),
     );
   }
 }
@@ -725,16 +767,22 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     }
   }
 
-  void submitAnswer() {
-    setState(() {
-      if (puzzles[current].type == 'jumble') {
-        final correct = List.generate(puzzles[current].options.length, (i) => i);
-        if (userJumbleOrder.join(',') == correct.join(',')) {
-          xp += 10;
-        }
-      } else if (selectedOption == puzzles[current].correctOptionIndex) {
+  void submitAnswer() async {
+    bool correct = false;
+    if (puzzles[current].type == 'jumble') {
+      final correctOrder = List.generate(puzzles[current].options.length, (i) => i);
+      if (userJumbleOrder.join(',') == correctOrder.join(',')) {
+        correct = true;
         xp += 10;
       }
+    } else if (selectedOption == puzzles[current].correctOptionIndex) {
+      correct = true;
+      xp += 10;
+    }
+
+    await SrsManager().updateProgress(currentUserId, widget.chunkId, correct);
+
+    setState(() {
       if (current < puzzles.length - 1) {
         current++;
         selectedOption = null;
