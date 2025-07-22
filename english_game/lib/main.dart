@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'utils/srs_manager.dart';
+import 'analytics_service.dart';
 
 const String currentUserId = 'user_001';
-
 class Chunk {
   final String id;
   final String text;
@@ -754,6 +754,13 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
   void initState() {
     super.initState();
     _setupJumble();
+    if (puzzles.isNotEmpty) {
+      AnalyticsService.instance.track('puzzle_started', {
+        'chunkId': widget.chunkId,
+        'puzzleId': puzzles[current].id,
+        'type': puzzles[current].type,
+      });
+    }
   }
 
   void _setupJumble() {
@@ -767,12 +774,18 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
     }
   }
 
-  void submitAnswer() async {
-    bool correct = false;
-    if (puzzles[current].type == 'jumble') {
-      final correctOrder = List.generate(puzzles[current].options.length, (i) => i);
-      if (userJumbleOrder.join(',') == correctOrder.join(',')) {
-        correct = true;
+  void submitAnswer() {
+    final puzzle = puzzles[current];
+    bool isCorrect = false;
+    setState(() {
+      if (puzzle.type == 'jumble') {
+        final correct = List.generate(puzzle.options.length, (i) => i);
+        if (userJumbleOrder.join(',') == correct.join(',')) {
+          isCorrect = true;
+          xp += 10;
+        }
+      } else if (selectedOption == puzzle.correctOptionIndex) {
+        isCorrect = true;
         xp += 10;
       }
     } else if (selectedOption == puzzles[current].correctOptionIndex) {
@@ -791,6 +804,25 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
         finished = true;
       }
     });
+    AnalyticsService.instance.track('puzzle_completed', {
+      'chunkId': widget.chunkId,
+      'puzzleId': puzzle.id,
+      'correct': isCorrect,
+    });
+    if (!finished) {
+      final next = puzzles[current];
+      AnalyticsService.instance.track('puzzle_started', {
+        'chunkId': widget.chunkId,
+        'puzzleId': next.id,
+        'type': next.type,
+      });
+    } else {
+      final correctness = xp / (puzzles.length * 10);
+      AnalyticsService.instance.track('chunk_reviewed', {
+        'chunkId': widget.chunkId,
+        'correctness': correctness,
+      });
+    }
   }
 
   void _moveJumble(int oldIndex, int newIndex) {
@@ -848,7 +880,7 @@ class _PuzzleScreenState extends State<PuzzleScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Pergunta 2${current + 1} de ${puzzles.length}', style: Theme.of(context).textTheme.titleMedium),
+                  Text('Pergunta ${current + 1} de ${puzzles.length}', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 12),
                   Text(puzzle.prompt, style: Theme.of(context).textTheme.titleLarge),
                   if (puzzle.type == 'jumble') ...[
