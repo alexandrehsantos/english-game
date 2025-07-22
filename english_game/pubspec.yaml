@@ -43,6 +43,7 @@ dependencies:
 
   # For API calls
   http: ^1.2.2
+  shared_preferences: ^2.2.2
 
   # For local database (offline cache)
   isar: ^3.1.0+1
